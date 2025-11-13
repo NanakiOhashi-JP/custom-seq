@@ -1,3 +1,4 @@
-custom-seq/coreutils-9.8/*
-
-! custom-seq/coreutils-9.8/src/seq.c
+/coreutils-9.8/*
+!/coreutils-9.8/src/
+/coreutils-9.8/src/*
+!/coreutils-9.8/src/seq.c
