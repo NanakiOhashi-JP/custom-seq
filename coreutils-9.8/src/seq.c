@@ -54,6 +54,9 @@ static bool locale_ok;
 /* If true print all number with equal width.  */
 static bool equal_width;
 
+/* ADDITION for option -x: If true print integers in hexadecimal format.  */
+static bool hex_output;
+
 /* The string used to separate two numbers.  */
 static char const *separator;
 
@@ -66,6 +69,7 @@ static struct option const long_options[] =
   { "equal-width", no_argument, nullptr, 'w'},
   { "format", required_argument, nullptr, 'f'},
   { "separator", required_argument, nullptr, 's'},
+  { "hex-output", no_argument, nullptr, 'x'}, /* ADDITION for option -x */
   {GETOPT_HELP_OPTION_DECL},
   {GETOPT_VERSION_OPTION_DECL},
   { nullptr, 0, nullptr, 0}
@@ -93,7 +97,8 @@ Print numbers from FIRST to LAST, in steps of INCREMENT.\n\
   -f, --format=FORMAT      use printf style floating-point FORMAT\n\
   -s, --separator=STRING   use STRING to separate numbers (default: \\n)\n\
   -w, --equal-width        equalize width by padding with leading zeroes\n\
-"), stdout);
+  -x, --hex-output         output integers in hexadecimal format\n\
+"), stdout); /* ADDITION for option -x */
       fputs (HELP_OPTION_DESCRIPTION, stdout);
       fputs (VERSION_OPTION_DESCRIPTION, stdout);
       fputs (_("\
@@ -305,8 +310,19 @@ print_numbers (char const *fmt, struct layout layout,
       for (i = 1; ; i++)
         {
           long double x0 = x;
-          if (printf (fmt, x) < 0)
-            write_error ();
+          /* ADDITION for option -x: Check if hex output is enabled and value is an integer */
+          if (hex_output && x == (long long)x)
+            {
+              /* Output as hexadecimal for integer values */
+              if (printf ("%llx", (long long)x) < 0)
+                write_error ();
+            }
+          else
+            {
+              /* Use default format for floating-point values */
+              if (printf (fmt, x) < 0)
+                write_error ();
+            }
           if (out_of_range)
             break;
 
@@ -370,6 +386,10 @@ static char const *
 get_default_format (operand first, operand step, operand last)
 {
   static char format_buf[sizeof "%0.Lf" + 2 * INT_STRLEN_BOUND (int)];
+
+  /* ADDITION for option -x: For hex output, use %Lg to handle both cases */
+  if (hex_output)
+    return "%Lg";
 
   int prec = MAX (first.precision, step.precision);
 
@@ -565,6 +585,7 @@ main (int argc, char **argv)
 
   equal_width = false;
   separator = "\n";
+  hex_output = false; /* ADDITION for option -x */
 
   /* We have to handle negative numbers in the command line but this
      conflicts with the command line arguments.  So explicitly check first
@@ -578,7 +599,7 @@ main (int argc, char **argv)
           break;
         }
 
-      optc = getopt_long (argc, argv, "+f:s:w", long_options, nullptr);
+      optc = getopt_long (argc, argv, "+f:s:wx", long_options, nullptr); /* ADDITION for option -x */
       if (optc == -1)
         break;
 
@@ -594,6 +615,10 @@ main (int argc, char **argv)
 
         case 'w':
           equal_width = true;
+          break;
+
+        case 'x': /* ADDITION for option -x */
+          hex_output = true;
           break;
 
         case_GETOPT_HELP_CHAR;
@@ -648,7 +673,8 @@ main (int argc, char **argv)
       && (n_args == 1 || all_digits_p (argv[optind + 1]))
       && (n_args < 3 || (fast_step_ok
                          && all_digits_p (argv[optind + 2])))
-      && !equal_width && !format_str && strlen (separator) == 1)
+      && !equal_width && !format_str && strlen (separator) == 1
+      && !hex_output) /* ADDITION for option -x: disable fast path for hex output */
     {
       char const *s1 = user_start;
       char const *s2 = argv[optind + (n_args - 1)];
@@ -681,7 +707,8 @@ main (int argc, char **argv)
   if (first.precision == 0 && step.precision == 0 && last.precision == 0
       && isfinite (first.value) && 0 <= first.value && 0 <= last.value
       && 0 < step.value && step.value <= SEQ_FAST_STEP_LIMIT
-      && !equal_width && !format_str && strlen (separator) == 1)
+      && !equal_width && !format_str && strlen (separator) == 1
+      && !hex_output) /* ADDITION for option -x: disable fast path for hex output */
     {
       char *s1;
       char *s2;
